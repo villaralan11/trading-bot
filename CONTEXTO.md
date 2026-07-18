@@ -9,30 +9,6 @@ hace el agente (Hermes), y las decisiones de validación/rigor las supervisa
 Claude en otro chat. Este archivo es la fuente de verdad del proyecto: léelo
 completo antes de hacer cualquier cosa nueva.
 
-
-## CAMBIO DE RUMBO (después de v8)
-Tras probar 8 estrategias/enfoques sin encontrar ventaja real después de
-costos (ver tabla de estrategias), se decidió cambiar el objetivo del
-proyecto: en vez de buscar una estrategia que le gane al mercado, el bot
-ahora automatiza DCA (dollar-cost averaging) disciplinado — comprar una
-cantidad fija de BTC cada cierto intervalo de tiempo, sin importar el
-precio. Esto no busca "ganarle" al mercado, busca quitar el error humano
-de timing y emoción. La investigación de estrategias con ventaja puede
-retomarse más adelante si se desea, pero ya no es el objetivo principal.
-
-
-
-## CAMBIO DE RUMBO (después de v8)
-Tras probar 8 estrategias/enfoques sin encontrar ventaja real después de
-costos (ver tabla de estrategias), se decidió cambiar el objetivo del
-proyecto: en vez de buscar una estrategia que le gane al mercado, el bot
-ahora automatiza DCA (dollar-cost averaging) disciplinado — comprar una
-cantidad fija de BTC cada cierto intervalo de tiempo, sin importar el
-precio. Esto no busca "ganarle" al mercado, busca quitar el error humano
-de timing y emoción. La investigación de estrategias con ventaja puede
-retomarse más adelante si se desea, pero ya no es el objetivo principal.
-
-
 ## Estado actual: FASE DE INVESTIGACIÓN, ninguna estrategia validada todavía.
 NO se ha hecho paper trading. NO se ha usado dinero real. NO se ha usado
 ninguna API key real de exchange (solo testnet de Binance).
@@ -118,6 +94,30 @@ activos — eso es una forma de overfitting oculto (selección de sobrevivientes
 │   30 observaciones 5s, spreads 0.005-0.016%, umbral 0.3%. 0 oportunidades.
 ├── revisar_arbitraje_triangular.py    # v8: arbitraje triangular Binance BTC/ETH/USDT
 │   30 observaciones, ciclo USDT->BTC->ETH->USDT, comisión 0.3%. 0 rentables.
+├── estrategia_sma.py                  # v1
+├── estrategia_v2.py                   # v2
+├── estrategia_v3.py                   # v3
+├── estrategia_v3_validacion.py        # v3 out_sample
+├── estrategia_rsi.py                  # v4
+├── estrategia_rsi_1h.py               # v5
+├── bot_dca.py                         # NUEVO: Bot DCA (Dollar-Cost Averaging) para Binance TESTNET
+│   Ejecuta UNA compra de BTC y termina. Diseñado para GitHub Actions semanal.
+│   Config por variables de entorno: MONTO_USD=50, PAR=BTC/USDT, TESTNET=true
+│   Usa config.py (lee de os.environ), modo sandbox, orden market buy,
+│   historial CSV, log de errores, exit codes 0/1.
+├── comprar_dca.sh                     # NUEVO: Script bash ejecutable (chmod +x)
+│   Acceso directo: source venv → cd ~/trading-bot → python bot_dca.py
+│   Espera Enter al final para leer resultado. Symlink en ~/Escritorio/Bot_DCA
+├── .github/workflows/dca.yml          # NUEVO: GitHub Actions workflow semanal
+│   Schedule: domingos 12:00 UTC (cron: '0 12 * * 0')
+│   workflow_dispatch habilitado para pruebas manuales
+│   Steps: checkout → Python 3.11 → pip install ccxt pandas → python bot_dca.py
+│   Secrets: API_KEY, API_SECRET → env
+│   Artifact: historial-dca (historial_dca.csv)
+├── config.py                          # ACTUALIZADO: lee API_KEY/API_SECRET de os.environ
+├── .env                               # NUEVO: variables locales (API keys, MONTO_USD, etc.) — en .gitignore
+├── historial_dca.csv                  # Registro de compras DCA (timestamp, precio, monto, btc_comprado, btc_acumulado)
+├── errores_dca.log                    # Log de errores con timestamp
 
 ## Estrategias descartadas y por qué
 1. SMA 20/50 pura (1h): pierde mucho dinero, demasiado ruido.
@@ -133,30 +133,7 @@ sacar conclusiones. Aún NO se ha probado en out_sample porque no se ha
 decidido la versión final de los parámetros todavía (harían falta más
 señales primero).
 
-## Prueba realizada (v5: RSI 1h / 4 años)
-**Objetivo**: Aislar la variable timeframe (1h vs 4h) manteniendo TODO igual.
-**Resultado**: 
-- BTC: 31 trades ✅ (≥30), -2.49%, WR 51.6%
-- ETH: 27 trades, -0.46%, WR 74.1%
-- BNB: 16 trades, -0.34%, WR 62.5%
-- SOL: 26 trades, -3.11%, WR 50.0%
-- ADA: 14 trades, -2.16%, WR 42.9%
-- Promedio: 22.8 trades/par, -1.71% retorno, WR 56.2%
-**Conclusión**: Solo BTC supera 30 trades. Win rate mejora vs 4h (56% vs 40%),
-pero retorno sigue negativo. El problema de sample size persiste.
-
-## Prueba realizada (v6: RSI 1h, 20 pares, 4 años)
-**Objetivo**: Aumentar sample size vía universo de pares (top 20 volumen).
-**Resultado**:
-- 16 pares con datos completos (4 sin histórico suficiente)
-- 195 trades totales agregados
-- Win rate agregado: 57.44%
-- Retorno promedio ponderado: -0.03%
-- Sharpe agregado: 0.26
-- Solo BTC ≥30 trades (31)
-- CONCLUSIÓN: Agregado da ~0% alpha. Selección de sobrevivientes no ayuda.
-
-## Prueba realizada (v7: exploración de arbitraje entre exchanges)
+## Pruebas realizadas (v7: arbitraje spot 3 exchanges)
 **Objetivo**: Observar oportunidades de arbitraje BTC/USDT entre Binance, KuCoin y OKX
 **Resultado**: 
 - 30 observaciones en 2.5 min (cada 5s)
@@ -167,16 +144,26 @@ pero retorno sigue negativo. El problema de sample size persiste.
   Binance tiene el spread más bajo (~0%), KuCoin/OKX ~0.0002%.
   No vale la pena perseguir arbitraje spot simple sin latencia ultra-baja.
 
-## Prueba realizada (v8: arbitraje triangular Binance BTC/ETH/USDT)
+## Pruebas realizadas (v8: arbitraje triangular Binance BTC/ETH/USDT)
 **Objetivo**: Detectar arbitraje triangular USDT -> BTC -> ETH -> USDT en Binance
 **Resultado**: 
-- 30 mediciones en 2.5 min (cada 5s), ciclo: USDT -> BTC -> ETH -> USDT
+- 30 observaciones en 2.5 min (cada 5s), ciclo: USDT -> BTC -> ETH -> USDT
 - Comisión 0.1% x 3 = 0.3% total
 - Ganancias: -0.307% a -0.329% (promedio -0.318%)
 - **0 de 30 mediciones rentables** (todas pierden ~0.32% = comisión exacta)
 - Conclusión: Mercado eficiente, no hay arbitraje triangular detectable.
   El spread bid/ask + comisiones elimina cualquier oportunidad.
   ETH/BTC spread fijo en 0.028780/0.028790 = 0.035% por sí solo.
+
+## CAMBIO DE RUMBO (después de v8)
+Tras probar 8 estrategias/enfoques sin encontrar ventaja real después de
+costos (ver tabla de estrategias), se decidió cambiar el objetivo del
+proyecto: en vez de buscar una estrategia que le gane al mercado, el bot
+ahora automatiza DCA (dollar-cost averaging) disciplinado — comprar una
+cantidad fija de BTC cada cierto intervalo de tiempo, sin importar el
+precio. Esto no busca "ganarle" al mercado, busca quitar el error humano
+de timing y emoción. La investigación de estrategias con ventaja puede
+retomarse más adelante si se desea, pero ya no es el objetivo principal.
 
 ## ESTADÍSTICAS GENERALES DEL PROYECTO (Bitácora Acumulativa)
 
@@ -238,3 +225,53 @@ Posibles direcciones futuras:
 - O aceptar que en timeframe 1h-4h retail no hay alpha sostenible sin edge informacional.
 
 La bitácora (CONTEXTO.md + REGLAS.md) está completa para evitar repetir errores.
+
+## AUTOMATIZACIÓN DCA - Estado Actual
+- **GitHub Actions**: Workflow `.github/workflows/dca.yml` configurado (domingos 12:00 UTC, workflow_dispatch)
+- **Secrets GitHub**: API_KEY y API_SECRET configurados en Settings → Secrets → Actions
+- **Repo**: https://github.com/villaralan11/trading-bot (main branch)
+- **Local**: `comprar_dca.sh` ejecutable + symlink `~/Escritorio/Bot_DCA` para doble clic
+- **Modo actual**: 100% manual — el usuario enciende laptop y ejecuta cuando quiere
+- **Validación local**: ✅ Comprobado — compra de $50 en testnet ejecutada exitosamente desde laptop
+- **GitHub Actions**: ⚠️ Bloqueado por IP (Binance testnet bloquea IPs de GitHub - error 451)
+
+### Archivos DCA Creados
+1. `bot_dca.py` — Lógica principal (una compra, testnet, historial CSV, log errores, exit codes)
+2. `comprar_dca.sh` — Script bash ejecutable (activa venv, carga .env, corre bot, espera Enter)
+3. `~/.local/share/applications/Bot_DCA.desktop` / symlink `~/Escritorio/Bot_DCA` — Acceso directo
+4. `.github/workflows/dca.yml` — GitHub Actions semanal (listo para cuando se resuelva IP)
+5. `config.py` — Lee API keys de os.environ (compatible .env local + GitHub Secrets)
+5. `.env` — Variables locales (API keys testnet, MONTO_USD=50, etc.) — en .gitignore
+6. `historial_dca.csv` — Registro compras (timestamp, precio, monto, btc_comprado, btc_acumulado)
+7. `errores_dca.log` — Log de errores con timestamp
+
+### Próxima acción DCA (cuando se desee automatizar)
+- Opción A: VPS barato (Hetzner $4.50/mes, RackNerd $10-15/año) — IP no bloqueada
+- Opción B: Self-hosted GitHub Actions runner en laptop/otra máquina — usa IP local
+- Opción C: Aceptar modo 100% manual actual (doble clic en Bot_DCA cuando se quiera)
+
+## ACTUALIZACIONES RECIENTES (Julio 2025)
+
+### Fix: Prevenir crash si historial_dca.csv está abierto (2025-07-17)
+**Problema**: Si el usuario tiene `historial_dca.csv` abierto en Excel/visores y ejecuta el bot, la compra en Binance se ejecutaba bien pero el bot fallaba al escribir el CSV (archivo bloqueado por SO), crasheando el proceso y sin registrar la compra localmente.
+
+**Solución implementada en `bot_dca.py` (función `guardar_historial`)**:
+1. **Import `fcntl`** (módulo estándar Linux para bloqueo de archivos)
+2. **Bloqueo exclusivo no bloqueante**: `fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)`
+   - `LOCK_EX`: bloqueo exclusivo (espera si está libre, falla rápido si está ocupado)
+   - `LOCK_NB`: non-blocking — NO se queda colgado esperando; falla inmediatamente con `IOError`
+3. **Try/finally garantiza liberación**: `LOCK_UN` siempre se ejecuta aunque falle la escritura
+4. **Try/except externo captura `IOError`/`OSError`**:
+   - Imprime mensaje en ROJO: `"⚠️ ADVERTENCIA: La compra se ejecutó, pero el Excel está abierto. Ciérralo para registrar la compra."`
+   - Loggea en `errores_dca.log` para auditoría
+   - **NO crashea el bot** — la compra en Binance ya se hizo y el proceso termina con exit code 0
+
+**Commit**: `c66cebc` — "Fix: Prevenir crash si historial_dca.csv está abierto (bloqueo no bloqueante)"
+
+**Verificación**: Bot DCA ejecutado exitosamente 16 veces en testnet, CSV actualizado correctamente. Simulación de bloqueo confirmada: bot detecta archivo ocupado, muestra advertencia en rojo, loggea error, continúa sin crash.
+
+### v9: Grid bot (en progreso)
+Tras investigar bots realmente usados en 2026, se identificó que las estrategias direccionales simples (v1-v8) no tienen ventaja retail, pero los **grid bots sí tienen un mecanismo lógico real** (capturar oscilación de precio sin predecir dirección) y son de los más usados en la industria, con retornos documentados de 12-25% anual cuando se configuran bien. 
+
+**Riesgos conocidos**: rendimiento pobre en tendencias fuertes, fricción de comisiones, necesidad de rango bien calibrado. 
+**Ver reglas 8-11 en REGLAS.md** para los guardarraíles obligatorios.

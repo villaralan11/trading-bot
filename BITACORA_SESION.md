@@ -31,7 +31,7 @@
      - Imprime aviso en **ROJO**: *"⚠️ ADVERTENCIA: La compra se ejecutó, pero el Excel está abierto. Ciérralo para registrar la compra."*  
      - Loggea en `errores_dca.log` para auditoría  
      - **NO crashea el bot** (exit code 0) — la compra en Binance ya se hizo  
-   **Verificación:** Bot ejecutado 16 veces en testnet, CSV actualizado correctamente. Simulación de bloqueo confirmada: detecta archivo ocupado, muestra aviso rojo, loggea, continúa sin crash.
+   **Verificación:** Bot ejecutado 16 veces en testnet, CSV actualizado correctamente. Simulación de bloqueo confirmada: detecta archivo ocupado, muestra aviso rojo, loggea error, continúa sin crash.
 
 4. **Cambiamos el bot de BTC a ETH (genérico multi-moneda)**  
    `bot_dca.py` ahora lee `PAR` desde variable de entorno (default `BTC/USDT`).  

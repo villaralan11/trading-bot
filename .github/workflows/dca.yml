@@ -12,11 +12,11 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install ccxt pandas
-      - run: python bot_dca.py
+      - run: python bot_dca/bot_dca.py
         env:
           API_KEY: ${{ secrets.API_KEY }}
           API_SECRET: ${{ secrets.API_SECRET }}
       - uses: actions/upload-artifact@v4
         with:
           name: historial-dca
-          path: historial_dca.csv
+          path: resultados/historial_dca.csv
