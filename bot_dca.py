@@ -10,6 +10,7 @@ from datetime import datetime
 import traceback
 import os
 import sys
+import fcntl
 
 # ============================================================
 # CONFIGURACIÓN (leída desde variables de entorno con defaults)
@@ -62,7 +63,7 @@ def log_error(mensaje):
 # FUNCIÓN: GUARDAR COMPRA EN HISTORIAL CSV
 # ============================================================
 def guardar_historial(timestamp, precio, monto_usd, btc_comprado, btc_acumulado):
-    """Guarda una compra en el CSV de historial"""
+    """Guarda una compra en el CSV de historial con bloqueo exclusivo"""
     fila = pd.DataFrame([{
         'timestamp': timestamp,
         'precio': precio,
@@ -71,11 +72,27 @@ def guardar_historial(timestamp, precio, monto_usd, btc_comprado, btc_acumulado)
         'btc_acumulado': btc_acumulado
     }])
     
-    # Crear archivo con header si no existe, sino append
-    if not os.path.exists(HISTORIAL_CSV):
-        fila.to_csv(HISTORIAL_CSV, index=False)
-    else:
-        fila.to_csv(HISTORIAL_CSV, mode='a', header=False, index=False)
+    try:
+        # Abrir en modo append (crea si no existe)
+        with open(HISTORIAL_CSV, 'a', newline='') as f:
+            # Bloqueo exclusivo NO BLOQUEANTE (falla rápido si está ocupado)
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            try:
+                # Escribir header solo si el archivo está vacío
+                if f.tell() == 0:
+                    fila.to_csv(f, index=False)
+                else:
+                    fila.to_csv(f, mode='a', header=False, index=False)
+            finally:
+                # Liberar bloqueo siempre
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    except (IOError, OSError) as e:
+        # El archivo está bloqueado por otro proceso (Excel, visor, etc.)
+        # NO hacer crash: la compra ya se ejecutó en Binance
+        print(f"\033[91m⚠️ ADVERTENCIA: La compra se ejecutó, pero el Excel está abierto. Ciérralo para registrar la compra.\033[0m")
+        print(f"   Detalle técnico: {e}")
+        # Loguear el error en el log de errores para auditoría
+        log_error(f"No se pudo escribir en CSV (archivo bloqueado): {e}")
 
 # ============================================================
 # FUNCIÓN: OBTENER BALANCE ACTUAL DE BTC
