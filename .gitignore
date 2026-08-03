@@ -1,4 +1,21 @@
-config.py
+# Python
+__pycache__/
+*.pyc
 venv/
+.pytest_cache/
 
+# Configuración y secretos
 .env
+config.py
+
+# Datos generados (descargados, no código)
+datos/historicos/
+
+# Resultados de ejecución (logs y CSVs de compras reales)
+resultados/*.csv
+resultados/*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
