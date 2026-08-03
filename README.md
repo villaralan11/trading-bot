@@ -196,6 +196,6 @@ MIT License — ver `LICENSE`.
 
 ## Autor
 
-Alan Villar — proyecto de aprendizaje/portafolio técnico.  
+Alan Antonio Molina Villar — proyecto de aprendizaje/portafolio técnico.  
 Todo el código técnico desarrollado con asistencia de IA (Hermes Agent).  
 Decisiones de validación y rigor supervisadas por revisión humana (Claude).
